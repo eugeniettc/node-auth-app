@@ -11,7 +11,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      #  1. Full stack (db + backend + frontend)
+      # 1. Full stack (db + backend + frontend)
       - name: Build and start the full stack
         run: docker compose up -d --build --wait
 
@@ -44,7 +44,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
-          path: node-auth-app/playwright-report/
+          path: playwright-report/
           if-no-files-found: ignore
 
       - name: Show stack logs on failure
