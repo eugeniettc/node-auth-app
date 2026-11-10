@@ -80,7 +80,7 @@ async function onSubmit(event, mode) {
       const name = await api.register(username, password);
       flash = {
         type: "success",
-        text: `Account created for $name}. Please log in.`,
+        text: `Account created for ${name}. Please log in.`,
       };
       return go("/login");
     }
