@@ -7,9 +7,6 @@ on:
 jobs:
   ci-cd:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: node-auth-app
     steps:
       - name: Checkout
         uses: actions/checkout@v4
