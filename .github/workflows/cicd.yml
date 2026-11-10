@@ -15,13 +15,17 @@ jobs:
       - name: Build and start the full stack
         run: docker compose up -d --build --wait
 
-      - name: Wait for the frontend
+      - name: Wait for the backend and frontend to be fully responsive
         run: |
-          for i in $(seq 1 60); do
-            curl -fs http://localhost:5173 > /dev/null && exit 0
-            sleep 2
+          for i in $(seq 1 30); do
+            if curl -s http://localhost:3000/ > /dev/null || curl -s http://localhost:5173 > /dev/null; then
+              echo "Application is up!"
+              exit 0
+            fi
+            echo "Waiting for application to respond... attempt $i"
+            sleep 3
           done
-          echo "Frontend did not become ready" && docker compose logs
+          echo "Application did not become ready in time" && docker compose logs
           exit 1
 
       # 2. Playwright tests
