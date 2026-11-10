@@ -5,11 +5,54 @@ on:
     branches: [main]
 
 jobs:
-  build-and-push:
+  ci-cd:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: node-auth-app
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
+
+      #  1. Full stack (db + backend + frontend)
+      - name: Build and start the full stack
+        run: docker compose up -d --build --wait
+
+      - name: Wait for the frontend
+        run: |
+          for i in $(seq 1 60); do
+            curl -fs http://localhost:5173 > /dev/null && exit 0
+            sleep 2
+          done
+          echo "Frontend did not become ready" && docker compose logs
+          exit 1
+
+      # 2. Playwright tests
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright tests
+        run: npx playwright test
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: node-auth-app/playwright-report/
+          if-no-files-found: ignore
+
+      - name: Show stack logs on failure
+        if: failure()
+        run: docker compose logs
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v4
@@ -17,38 +60,16 @@ jobs:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Set up Docker Compose
-        run: docker compose version
+      - name: Tag images
+        run: |
+          docker tag "$(docker compose images -q frontend)" ${{ vars.DOCKERHUB_USERNAME }}/auth-app:frontend
+          docker tag "$(docker compose images -q backend)" ${{ vars.DOCKERHUB_USERNAME }}/auth-app:backend
 
-      - name: Start stack with Docker Compose
-        run: docker compose up --build -d
+      - name: Push images
+        run: |
+          docker push ${{ vars.DOCKERHUB_USERNAME }}/auth-app:frontend
+          docker push ${{ vars.DOCKERHUB_USERNAME }}/auth-app:backend
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps
-
-      - name: Run Playwright tests
-        run: npx playwright test
-
-      - name: Build and push Frontend image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: Dockerfile.multistage
-          push: true
-          tags: ${{ vars.DOCKERHUB_USERNAME }}/auth-app:frontend
-
-      - name: Build and push Backend image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./backend
-          file: ./backend/Dockerfile
-          push: true
-          tags: ${{ vars.DOCKERHUB_USERNAME }}/auth-app:backend
+      - name: Stop the stack
+        if: always()
+        run: docker compose down -v
